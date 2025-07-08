@@ -1,130 +1,137 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Oráculo Fundiário - REURBAN-CAMPINAS</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://unpkg.com/leaflet-image/leaflet-image.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; margin: 0; background: #f5f6f7; }
-    header { background-color: #006241; color: white; padding: 1rem; display: flex; justify-content: space-between; align-items: center; }
-    .container { display: flex; padding: 1rem; }
-    #map { height: 500px; flex: 2; }
-    #relatorio { flex: 1; margin-left: 1rem; background: white; padding: 1rem; border-radius: 8px; }
-    .controls { padding: 0 1rem; margin-bottom: 0.5rem; }
-    button { margin: 1rem 0.5rem; padding: 0.5rem 1rem; font-weight: bold; }
-    .link-bar { margin-right: 2rem; }
-    .link-bar a { color: white; margin-left: 1rem; text-decoration: none; }
+    body { font-family: Arial; margin: 0; }
+    header { background-color: #006644; color: white; padding: 12px 16px; font-weight: bold; font-size: 18px; }
+    .container { display: flex; padding: 10px; gap: 10px; }
+    #map { height: 480px; flex: 2; }
+    #info { flex: 1; background: #f7f7f7; padding: 12px; border-radius: 5px; }
+    #camadas { margin: 10px; }
+    button { padding: 10px; margin: 10px; background: #004bcc; color: white; border: none; cursor: pointer; border-radius: 4px; }
+    button:hover { background: #003399; }
+    .label { font-weight: bold; margin-top: 10px; }
   </style>
 </head>
 <body>
-<header>
-  <div><strong>Oráculo Fundiário - REURBAN-CAMPINAS</strong></div>
-  <div class="link-bar">
-    <a href="https://earth.google.com" target="_blank">Google Earth</a>
-    <a href="https://www.mapbox.com" target="_blank">Mapbox</a>
-    <a href="https://www.gov.br/inpe" target="_blank">INPE</a>
-    <a href="https://www.gov.br/incra" target="_blank">INCRA</a>
-    <a href="https://www.ibge.gov.br" target="_blank">IBGE</a>
-    <a href="https://car.gov.br" target="_blank">CAR</a>
+  <header>
+    Oráculo Fundiário - REURBAN-CAMPINAS
+    <nav style="float:right; font-size: 14px;">
+      <a href="https://earth.google.com" target="_blank" style="color:white; margin-left:12px;">Google Earth</a>
+      <a href="https://www.mapbox.com" target="_blank" style="color:white; margin-left:12px;">Mapbox</a>
+      <a href="https://www.gov.br/inpe" target="_blank" style="color:white; margin-left:12px;">INPE</a>
+      <a href="https://www.gov.br/incra" target="_blank" style="color:white; margin-left:12px;">INCRA</a>
+      <a href="https://www.ibge.gov.br" target="_blank" style="color:white; margin-left:12px;">IBGE</a>
+      <a href="https://www.car.gov.br" target="_blank" style="color:white; margin-left:12px;">CAR</a>
+    </nav>
+  </header>
+
+  <div id="camadas">
+    <input type="checkbox" id="camadaCAR" checked> Mostrar CAR
+    <input type="checkbox" id="camadaSIGEF" checked style="margin-left:12px;"> Mostrar SIGEF
   </div>
-</header>
 
-<div class="controls">
-  <label><input type="checkbox" id="camadaCAR" checked> Mostrar CAR</label>
-  <label><input type="checkbox" id="camadaSIGEF" checked> Mostrar SIGEF</label>
-</div>
-
-<div class="container">
-  <div id="map"></div>
-  <div id="relatorio">
-    <h3>Consulta</h3>
-    <p><strong>Endereço:</strong> <span id="endereco"></span></p>
-    <p><strong>Coordenadas:</strong> <span id="coordenadas"></span></p>
-    <p><strong>Dados SIGEF:</strong> <span id="sigef"></span></p>
+  <div class="container">
+    <div id="map"></div>
+    <div id="info">
+      <h3>Consulta</h3>
+      <p><span class="label">Endereço:</span> <span id="endereco">-</span></p>
+      <p><span class="label">Coordenadas:</span> <span id="coordenadas">-</span></p>
+      <p><span class="label">Dados SIGEF:</span> <span id="sigef">-</span></p>
+    </div>
   </div>
-</div>
 
-<div style="padding-left: 1rem">
   <button id="btnPDF">Gerar Relatório Completo</button>
-</div>
 
-<!-- Relatório oculto para PDF -->
-<div id="modeloRelatorio" style="display: none">
-  <h2>Relatório Técnico de Regularização Fundiária</h2>
-  <p><strong>Projeto:</strong> Oráculo Fundiário - REURBAN-CAMPINAS</p>
-  <p><strong>Município:</strong> Campinas/SP</p>
-  <p><strong>Endereço:</strong> <span id="rpt_endereco"></span></p>
-  <p><strong>Coordenadas:</strong> <span id="rpt_coords"></span></p>
-  <p><strong>Tipo REURB:</strong> REURB-S</p>
-  <p><strong>Base Legal:</strong> Lei 13.465/2017</p>
-  <p><strong>Dados SIGEF:</strong> <span id="rpt_sigef"></span></p>
-  <p><strong>Infraestrutura:</strong> Água, esgoto, luz, acessos</p>
-  <p><strong>Responsável Técnico:</strong> _________________________</p>
-</div>
+  <!-- Conteúdo oculto para o relatório PDF -->
+  <div id="modeloRelatorio" style="display:none; padding:20px; font-family:Arial;">
+    <h2>Relatório de Consulta Fundiária</h2>
+    <p><strong>Endereço:</strong> <span id="rpt_endereco">-</span></p>
+    <p><strong>Coordenadas:</strong> <span id="rpt_coords">-</span></p>
+    <p><strong>Dados SIGEF:</strong> <span id="rpt_sigef">-</span></p>
+    <p><strong>Data:</strong> <span id="rpt_data"></span></p>
+  </div>
 
-<script>
-  const map = L.map('map').setView([-22.9, -47.05], 15);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: 'Leaflet | © OpenStreetMap'
-  }).addTo(map);
+  <script>
+    const map = L.map('map').setView([-22.9, -47.05], 15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: 'Leaflet | © OpenStreetMap'
+    }).addTo(map);
 
-  const proxy = 'https://corsproxy.io/?';
-  const carLayer = L.tileLayer.wms(proxy + 'https://mapas.mma.gov.br/arcgis/services/CAR/MapServer/WMSServer', {
-    layers: '0', format: 'image/png', transparent: true
-  });
-  const sigefLayer = L.tileLayer.wms(proxy + 'https://certificacao.sigef.gov.br/geoserver/wms', {
-    layers: 'limite_imovel_certificado', format: 'image/png', transparent: true
-  });
+    const proxy = 'https://corsproxy.io/?';
+    const carLayer = L.tileLayer.wms(proxy + 'https://mapas.mma.gov.br/arcgis/services/CAR/MapServer/WMSServer', {
+      layers: '0', format: 'image/png', transparent: true
+    });
+    const sigefLayer = L.tileLayer.wms(proxy + 'https://certificacao.sigef.gov.br/geoserver/wms', {
+      layers: 'limite_imovel_certificado', format: 'image/png', transparent: true
+    });
 
-  if (document.getElementById('camadaCAR').checked) carLayer.addTo(map);
-  if (document.getElementById('camadaSIGEF').checked) sigefLayer.addTo(map);
+    const chkCAR = document.getElementById('camadaCAR');
+    const chkSIGEF = document.getElementById('camadaSIGEF');
+    if (chkCAR.checked) map.addLayer(carLayer);
+    if (chkSIGEF.checked) map.addLayer(sigefLayer);
 
-  document.getElementById('camadaCAR').addEventListener('change', e => {
-    e.target.checked ? map.addLayer(carLayer) : map.removeLayer(carLayer);
-  });
-  document.getElementById('camadaSIGEF').addEventListener('change', e => {
-    e.target.checked ? map.addLayer(sigefLayer) : map.removeLayer(sigefLayer);
-  });
+    chkCAR.addEventListener('change', e => e.target.checked ? map.addLayer(carLayer) : map.removeLayer(carLayer));
+    chkSIGEF.addEventListener('change', e => e.target.checked ? map.addLayer(sigefLayer) : map.removeLayer(sigefLayer));
 
-  let marker;
-  let dadosConsulta = {};
-  map.on('click', async function (e) {
-    const { lat, lng } = e.latlng;
-    if (marker) map.removeLayer(marker);
-    marker = L.marker([lat, lng]).addTo(map);
-    dadosConsulta.coordenadas = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-    document.getElementById('coordenadas').textContent = dadosConsulta.coordenadas;
+    let marker;
+    let dadosConsulta = {
+      endereco: '',
+      coordenadas: '',
+      sigef: ''
+    };
 
-    try {
-      const geo = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=AIzaSyDXEFWgV9Af1mX1uhLVKPOQU0GDUrVcIn0`);
-      const geoData = await geo.json();
-      const endereco = geoData.results?.[0]?.formatted_address ?? 'Desconhecido';
-      document.getElementById('endereco').textContent = endereco;
-      dadosConsulta.endereco = endereco;
+    map.on('click', async function (e) {
+      const { lat, lng } = e.latlng;
+      if (marker) map.removeLayer(marker);
+      marker = L.marker([lat, lng]).addTo(map);
 
-      const bbox = map.getBounds().toBBoxString();
-      const wmsUrl = proxy + `https://certificacao.sigef.gov.br/geoserver/wms?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetFeatureInfo&LAYERS=limite_imovel_certificado&QUERY_LAYERS=limite_imovel_certificado&BBOX=${bbox}&FEATURE_COUNT=1&HEIGHT=500&WIDTH=500&INFO_FORMAT=application/json&SRS=EPSG:4326&X=250&Y=250`;
-      const sigefResp = await fetch(wmsUrl);
-      const sigefData = await sigefResp.json();
-      const sigefInfo = sigefData.features?.[0]?.properties?.cd_imovel ?? 'Não identificado';
-      document.getElementById('sigef').textContent = sigefInfo;
-      dadosConsulta.sigef = sigefInfo;
-    } catch (err) {
-      alert("Erro ao consultar dados.");
-    }
-  });
+      const coords = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+      dadosConsulta.coordenadas = coords;
+      document.getElementById('coordenadas').textContent = coords;
 
-  document.getElementById('btnPDF').addEventListener('click', () => {
-    document.getElementById('rpt_endereco').textContent = dadosConsulta.endereco || '';
-    document.getElementById('rpt_coords').textContent = dadosConsulta.coordenadas || '';
-    document.getElementById('rpt_sigef').textContent = dadosConsulta.sigef || '';
-    const element = document.getElementById('modeloRelatorio');
-    html2pdf().from(element).save("Relatorio_REURBAN-CAMPINAS.pdf");
-  });
-</script>
+      try {
+        const resp = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+        const json = await resp.json();
+        const endereco = json.display_name || 'Desconhecido';
+        dadosConsulta.endereco = endereco;
+        document.getElementById('endereco').textContent = endereco;
+      } catch {
+        dadosConsulta.endereco = 'Erro ao obter endereço';
+        document.getElementById('endereco').textContent = 'Erro';
+      }
+
+      try {
+        const bbox = map.getBounds().toBBoxString();
+        const wmsUrl = proxy + `https://certificacao.sigef.gov.br/geoserver/wms?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetFeatureInfo&LAYERS=limite_imovel_certificado&QUERY_LAYERS=limite_imovel_certificado&BBOX=${bbox}&FEATURE_COUNT=1&HEIGHT=500&WIDTH=500&INFO_FORMAT=application/json&SRS=EPSG:4326&X=250&Y=250`;
+        const sigefResp = await fetch(wmsUrl);
+        const sigefData = await sigefResp.json();
+        const info = sigefData.features?.[0]?.properties?.cd_imovel ?? 'Não identificado';
+        dadosConsulta.sigef = info;
+        document.getElementById('sigef').textContent = info;
+      } catch {
+        dadosConsulta.sigef = 'Erro';
+        document.getElementById('sigef').textContent = 'Erro';
+      }
+    });
+
+    document.getElementById('btnPDF').addEventListener('click', () => {
+      document.getElementById('rpt_endereco').textContent = dadosConsulta.endereco;
+      document.getElementById('rpt_coords').textContent = dadosConsulta.coordenadas;
+      document.getElementById('rpt_sigef').textContent = dadosConsulta.sigef;
+      document.getElementById('rpt_data').textContent = new Date().toLocaleString();
+
+      setTimeout(() => {
+        const element = document.getElementById('modeloRelatorio');
+        html2pdf().from(element).save("Relatorio_REURBAN-CAMPINAS.pdf");
+      }, 300);
+    });
+  </script>
 </body>
 </html>
