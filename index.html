@@ -1,130 +1,128 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta charset="UTF-8">
   <title>Oráculo Fundiário - REURBAN-CAMPINAS</title>
-
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDXEFWgV9Af1mX1uhLVKPOQU0GDUrVcIn0"></script>
+  <script src="https://unpkg.com/leaflet-image/leaflet-image.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; background: #f5f6f7; }
+    header { background-color: #006241; color: white; padding: 1rem; display: flex; justify-content: space-between; align-items: center; }
+    .container { display: flex; padding: 1rem; }
+    #map { height: 500px; flex: 2; }
+    #relatorio { flex: 1; margin-left: 1rem; background: white; padding: 1rem; border-radius: 8px; }
+    .controls { padding: 0 1rem; margin-bottom: 0.5rem; }
+    .controls input[type=text] { padding: 5px; width: 300px; }
+    .controls label { margin-right: 10px; }
+    button { margin: 1rem 0.5rem; padding: 0.5rem 1rem; font-weight: bold; }
+    .link-bar { margin-right: 2rem; }
+    .link-bar a { color: white; margin-left: 1rem; text-decoration: none; }
+  </style>
 </head>
-<body class="bg-gray-100 font-sans">
-
-  <header class="bg-green-700 text-white p-4 flex justify-between items-center">
-    <h1 class="text-xl font-bold">Oráculo Fundiário - REURBAN-CAMPINAS</h1>
-    <nav class="space-x-4 text-sm">
-      <span>Google Earth</span><span>Mapbox</span><span>INPE</span><span>INCRA</span><span>IBGE</span><span>CAR</span>
-    </nav>
-  </header>
-
-  <div class="grid grid-cols-1 md:grid-cols-2 p-4 gap-4">
-    <div>
-      <div class="mb-2">
-        <label class="mr-4"><input type="checkbox" id="toggleCAR" checked /> Mostrar CAR</label>
-        <label><input type="checkbox" id="toggleSIGEF" checked /> Mostrar SIGEF</label>
-      </div>
-      <div id="map" class="w-full h-96 rounded shadow"></div>
-      <button id="btnPDF" class="mt-2 bg-blue-700 text-white px-4 py-2 rounded">Gerar PDF</button>
-    </div>
-
-    <div class="bg-white p-4 rounded shadow space-y-4">
-      <h2 class="text-lg font-bold">Consulta</h2>
-      <div id="relatorio">
-        <p><strong>Tipo de REURB:</strong> -</p>
-        <p><strong>Base Legal:</strong> -</p>
-        <p><strong>Tempo de Ocupação:</strong> -</p>
-        <p><strong>Endereço:</strong> -</p>
-        <p><strong>Dados SIGEF:</strong> -</p>
-      </div>
-    </div>
+<body>
+<header>
+  <div><strong>Oráculo Fundiário - REURBAN-CAMPINAS</strong></div>
+  <div class="link-bar">
+    <a href="https://earth.google.com" target="_blank">Google Earth</a>
+    <a href="https://www.mapbox.com" target="_blank">Mapbox</a>
+    <a href="https://www.gov.br/inpe" target="_blank">INPE</a>
+    <a href="https://www.gov.br/incra" target="_blank">INCRA</a>
+    <a href="https://www.ibge.gov.br" target="_blank">IBGE</a>
+    <a href="https://car.gov.br" target="_blank">CAR</a>
   </div>
+</header>
+<div class="controls">
+  <label><input type="checkbox" id="camadaCAR" checked> Mostrar CAR</label>
+  <label><input type="checkbox" id="camadaSIGEF" checked> Mostrar SIGEF</label>
+</div>
+<div class="container">
+  <div id="map"></div>
+  <div id="relatorio">
+    <h3>Consulta</h3>
+    <p><strong>Tipo de REURB:</strong> <span id="tipo"></span></p>
+    <p><strong>Base Legal:</strong> <span id="legal"></span></p>
+    <p><strong>Tempo de Ocupação:</strong> <span id="tempo"></span></p>
+    <p><strong>Endereço:</strong> <span id="endereco"></span></p>
+    <p><strong>Dados SIGEF:</strong> <span id="sigef"></span></p>
+  </div>
+</div>
+<div style="padding-left: 1rem">
+  <button id="btnPDF">Gerar PDF</button>
+</div>
 
-  <script>
-    const map = L.map('map').setView([-22.9, -47.05], 15);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '© OpenStreetMap'
-    }).addTo(map);
+<script>
+  const map = L.map('map').setView([-22.9, -47.05], 15);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: 'Leaflet | © OpenStreetMap'
+  }).addTo(map);
 
-    const proxy = 'https://corsproxy.io/?';
+  const proxy = 'https://corsproxy.io/?';
 
-    const carLayer = L.tileLayer.wms(proxy + 'https://mapas.mma.gov.br/cgi-bin/mapserv?map=/var/www/html/web/.mapfiles/cadastroambiental.map', {
-      layers: 'cadastroambiental',
-      format: 'image/png',
-      transparent: true
-    });
-    const sigefLayer = L.tileLayer.wms(proxy + 'https://certificacao.sigef.gov.br/geoserver/wms', {
-      layers: 'limite_imovel_certificado',
-      format: 'image/png',
-      transparent: true
-    });
+  const carLayer = L.tileLayer.wms(proxy + 'https://mapas.mma.gov.br/arcgis/services/CAR/MapServer/WMSServer', {
+    layers: '0', format: 'image/png', transparent: true
+  });
+  const sigefLayer = L.tileLayer.wms(proxy + 'https://certificacao.sigef.gov.br/geoserver/wms', {
+    layers: 'limite_imovel_certificado', format: 'image/png', transparent: true
+  });
 
-    carLayer.addTo(map);
-    sigefLayer.addTo(map);
+  if (document.getElementById('camadaCAR').checked) carLayer.addTo(map);
+  if (document.getElementById('camadaSIGEF').checked) sigefLayer.addTo(map);
 
-    document.getElementById('toggleCAR').addEventListener('change', function () {
-      this.checked ? carLayer.addTo(map) : map.removeLayer(carLayer);
-    });
+  document.getElementById('camadaCAR').addEventListener('change', e => {
+    e.target.checked ? map.addLayer(carLayer) : map.removeLayer(carLayer);
+  });
+  document.getElementById('camadaSIGEF').addEventListener('change', e => {
+    e.target.checked ? map.addLayer(sigefLayer) : map.removeLayer(sigefLayer);
+  });
 
-    document.getElementById('toggleSIGEF').addEventListener('change', function () {
-      this.checked ? sigefLayer.addTo(map) : map.removeLayer(sigefLayer);
-    });
+  let marker;
+  map.on('click', async function (e) {
+    const { lat, lng } = e.latlng;
+    if (marker) map.removeLayer(marker);
+    marker = L.marker([lat, lng]).addTo(map).bindPopup("Ponto selecionado").openPopup();
 
-    let marker;
-    map.on('click', async function (e) {
-      const latlng = e.latlng;
-      if (marker) map.removeLayer(marker);
-      marker = L.marker(latlng).addTo(map).bindPopup("Ponto selecionado").openPopup();
+    try {
+      // Endereço Google Maps
+      const geo = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=AIzaSyDXEFWgV9Af1mX1uhLVKPOQU0GDUrVcIn0`);
+      const geoData = await geo.json();
+      const endereco = geoData.results?.[0]?.formatted_address ?? 'Coordenada sem endereço mapeado';
 
-      try {
-        // 1. Google Maps Geocoding
-        const geoResp = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${latlng.lat},${latlng.lng}&key=AIzaSyDXEFWgV9Af1mX1uhLVKPOQU0GDUrVcIn0`);
-        const geoData = await geoResp.json();
-        const endereco = geoData.results[0]?.formatted_address || 'Não encontrado';
+      // SIGEF GetFeatureInfo
+      const bbox = map.getBounds().toBBoxString();
+      const wmsUrl = proxy + `https://certificacao.sigef.gov.br/geoserver/wms?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetFeatureInfo&LAYERS=limite_imovel_certificado&QUERY_LAYERS=limite_imovel_certificado&BBOX=${bbox}&FEATURE_COUNT=1&HEIGHT=500&WIDTH=500&INFO_FORMAT=application/json&SRS=EPSG:4326&X=250&Y=250`;
+      const sigefResp = await fetch(wmsUrl);
+      const sigefData = await sigefResp.json();
+      const dadosSigef = sigefData.features?.[0]?.properties?.cd_imovel ?? 'Não encontrado';
 
-        // 2. SIGEF GetFeatureInfo
-        const bbox = map.getBounds().toBBoxString();
-        const size = map.getSize();
-        const point = map.latLngToContainerPoint(latlng);
-        const wmsUrl = `${proxy}https://certificacao.sigef.gov.br/geoserver/wms?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetFeatureInfo&LAYERS=limite_imovel_certificado&QUERY_LAYERS=limite_imovel_certificado&STYLES=&BBOX=${bbox}&FEATURE_COUNT=10&HEIGHT=${size.y}&WIDTH=${size.x}&FORMAT=image/png&INFO_FORMAT=application/json&SRS=EPSG:4326&X=${Math.floor(point.x)}&Y=${Math.floor(point.y)}`;
+      document.getElementById("tipo").textContent = "S";
+      document.getElementById("legal").textContent = "Lei nº 13.465/2017";
+      document.getElementById("tempo").textContent = "Aprox. 25 anos";
+      document.getElementById("endereco").textContent = endereco;
+      document.getElementById("sigef").textContent = dadosSigef;
 
-        const sigefResp = await fetch(wmsUrl);
-        const sigefJson = await sigefResp.json();
-        const prop = sigefJson.features?.[0]?.properties || null;
-        const sigefInfo = prop ? `Código: ${prop.codigo_certificacao}` : 'Não encontrado';
+    } catch (error) {
+      alert("Erro ao consultar dados.");
+      console.error(error);
+    }
+  });
 
-        document.getElementById('relatorio').innerHTML = `
-          <p><strong>Tipo de REURB:</strong> S</p>
-          <p><strong>Base Legal:</strong> Lei nº 13.465/2017</p>
-          <p><strong>Tempo de Ocupação:</strong> Aprox. 25 anos</p>
-          <p><strong>Endereço:</strong> ${endereco}</p>
-          <p><strong>Dados SIGEF:</strong> ${sigefInfo}</p>
-        `;
-      } catch (err) {
-        alert('Erro ao consultar dados.');
-        console.error(err);
-      }
-    });
-
-    // PDF
-    document.getElementById('btnPDF').addEventListener('click', async () => {
+  document.getElementById('btnPDF').addEventListener('click', () => {
+    leafletImage(map, function(err, canvas) {
+      const imgData = canvas.toDataURL('image/png');
       const { jsPDF } = window.jspdf;
       const pdf = new jsPDF();
-      const mapCanvas = await html2canvas(document.getElementById('map'));
-      const mapImg = mapCanvas.toDataURL('image/png');
       const texto = document.getElementById('relatorio').innerText;
 
       pdf.setFontSize(16);
       pdf.text("Relatório Fundiário - REURBAN-CAMPINAS", 10, 20);
       pdf.setFontSize(12);
       pdf.text(texto, 10, 30);
-      pdf.addImage(mapImg, 'PNG', 10, 80, 180, 100);
+      pdf.addImage(imgData, 'PNG', 10, 90, 180, 100);
       pdf.save('relatorio_reurb.pdf');
     });
-  </script>
+  });
+</script>
 </body>
 </html>
