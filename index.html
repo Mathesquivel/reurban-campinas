@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Oráculo Fundiário - REURBAN-CAMPINAS</title>
 
-  <!-- Estilos e bibliotecas -->
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -23,19 +22,15 @@
   </header>
 
   <div class="grid grid-cols-1 md:grid-cols-2 p-4 gap-4">
-    <!-- Mapa -->
     <div>
-      <input id="coordInput" class="border p-2 w-full mb-2" placeholder="Digite coordenadas (ex: -22.9,-47.05)" />
       <div class="mb-2">
         <label class="mr-4"><input type="checkbox" id="toggleCAR" checked /> Mostrar CAR</label>
         <label><input type="checkbox" id="toggleSIGEF" checked /> Mostrar SIGEF</label>
       </div>
       <div id="map" class="w-full h-96 rounded shadow"></div>
-      <button id="consultarBtn" class="mt-2 bg-green-700 text-white px-4 py-2 rounded">Consultar</button>
-      <button id="btnPDF" class="mt-2 ml-2 bg-blue-700 text-white px-4 py-2 rounded">Gerar PDF</button>
+      <button id="btnPDF" class="mt-2 bg-blue-700 text-white px-4 py-2 rounded">Gerar PDF</button>
     </div>
 
-    <!-- Relatório -->
     <div class="bg-white p-4 rounded shadow space-y-4">
       <h2 class="text-lg font-bold">Consulta</h2>
       <div id="relatorio">
@@ -43,31 +38,30 @@
         <p><strong>Base Legal:</strong> -</p>
         <p><strong>Tempo de Ocupação:</strong> -</p>
         <p><strong>Endereço:</strong> -</p>
+        <p><strong>Dados SIGEF:</strong> -</p>
       </div>
     </div>
   </div>
 
   <script>
-    const map = L.map('map').setView([-22.9, -47.05], 16);
+    const map = L.map('map').setView([-22.9, -47.05], 15);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '© OpenStreetMap'
     }).addTo(map);
 
-    const proxy = "https://corsproxy.io/?";
+    const proxy = 'https://proxy.cors.sh/';
+    const headers = { 'x-cors-api-key': 'temp-key' };
 
-    const carLayer = L.tileLayer.wms(proxy + "https://mapas.mma.gov.br/cgi-bin/mapserv?map=/var/www/html/web/.mapfiles/cadastroambiental.map", {
+    const carLayer = L.tileLayer.wms(proxy + 'https://mapas.mma.gov.br/cgi-bin/mapserv?map=/var/www/html/web/.mapfiles/cadastroambiental.map', {
       layers: 'cadastroambiental',
       format: 'image/png',
-      transparent: true,
-      attribution: 'Fonte: MMA/SICAR'
+      transparent: true
     });
-
-    const sigefLayer = L.tileLayer.wms(proxy + "https://certificacao.sigef.gov.br/geoserver/wms", {
+    const sigefLayer = L.tileLayer.wms(proxy + 'https://certificacao.sigef.gov.br/geoserver/wms', {
       layers: 'limite_imovel_certificado',
       format: 'image/png',
-      transparent: true,
-      attribution: 'Fonte: INCRA/SIGEF'
+      transparent: true
     });
 
     carLayer.addTo(map);
@@ -76,54 +70,51 @@
     document.getElementById('toggleCAR').addEventListener('change', function () {
       this.checked ? carLayer.addTo(map) : map.removeLayer(carLayer);
     });
+
     document.getElementById('toggleSIGEF').addEventListener('change', function () {
       this.checked ? sigefLayer.addTo(map) : map.removeLayer(sigefLayer);
     });
 
     let marker;
-    document.getElementById('coordInput').addEventListener('change', function () {
-      const coords = this.value.split(',');
-      if (coords.length === 2) {
-        const lat = parseFloat(coords[0]);
-        const lng = parseFloat(coords[1]);
-        if (!isNaN(lat) && !isNaN(lng)) {
-          map.setView([lat, lng], 17);
-          if (marker) map.removeLayer(marker);
-          marker = L.marker([lat, lng]).addTo(map).bindPopup('Coordenadas selecionadas').openPopup();
-        }
+    map.on('click', async function (e) {
+      const latlng = e.latlng;
+      if (marker) map.removeLayer(marker);
+      marker = L.marker(latlng).addTo(map).bindPopup("Ponto selecionado").openPopup();
+
+      // Google Maps: endereço
+      try {
+        const geoResp = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${latlng.lat},${latlng.lng}&key=AIzaSyDXEFWgV9Af1mX1uhLVKPOQU0GDUrVcIn0`);
+        const geoData = await geoResp.json();
+        const endereco = geoData.results[0]?.formatted_address || 'Não encontrado';
+
+        // GetFeatureInfo - SIGEF
+        const bbox = map.getBounds().toBBoxString();
+        const size = map.getSize();
+        const point = map.latLngToContainerPoint(latlng);
+        const wmsUrl = `${proxy}https://certificacao.sigef.gov.br/geoserver/wms?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetFeatureInfo&LAYERS=limite_imovel_certificado&QUERY_LAYERS=limite_imovel_certificado&STYLES=&BBOX=${bbox}&FEATURE_COUNT=10&HEIGHT=${size.y}&WIDTH=${size.x}&FORMAT=image/png&INFO_FORMAT=application/json&SRS=EPSG:4326&X=${Math.floor(point.x)}&Y=${Math.floor(point.y)}`;
+
+        const sigefResp = await fetch(wmsUrl, { headers });
+        const sigefJson = await sigefResp.json();
+        const prop = sigefJson.features?.[0]?.properties || null;
+        const sigefInfo = prop ? `Código: ${prop.codigo_certificacao}` : 'Não encontrado';
+
+        document.getElementById('relatorio').innerHTML = `
+          <p><strong>Tipo de REURB:</strong> S</p>
+          <p><strong>Base Legal:</strong> Lei nº 13.465/2017</p>
+          <p><strong>Tempo de Ocupação:</strong> Aprox. 25 anos</p>
+          <p><strong>Endereço:</strong> ${endereco}</p>
+          <p><strong>Dados SIGEF:</strong> ${sigefInfo}</p>
+        `;
+      } catch (err) {
+        alert('Erro ao consultar dados.');
+        console.error(err);
       }
     });
 
-    document.getElementById('consultarBtn').addEventListener('click', async function () {
-      const input = document.getElementById('coordInput').value;
-      const coords = input.split(',');
-      if (coords.length === 2) {
-        const lat = parseFloat(coords[0]);
-        const lng = parseFloat(coords[1]);
-        if (!isNaN(lat) && !isNaN(lng)) {
-          try {
-            const geoResp = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=AIzaSyDXEFWgV9Af1mX1uhLVKPOQU0GDUrVcIn0`);
-            const geoData = await geoResp.json();
-            const endereco = geoData.results[0]?.formatted_address || 'Endereço não encontrado';
-
-            document.getElementById('relatorio').innerHTML = `
-              <p><strong>Tipo de REURB:</strong> S</p>
-              <p><strong>Base Legal:</strong> Lei nº 13.465/2017</p>
-              <p><strong>Tempo de Ocupação:</strong> Aprox. 25 anos</p>
-              <p><strong>Endereço:</strong> ${endereco}</p>
-            `;
-          } catch (error) {
-            alert('Erro ao consultar Google Maps.');
-          }
-        }
-      }
-    });
-
-    // Gerar PDF
+    // PDF
     document.getElementById('btnPDF').addEventListener('click', async () => {
       const { jsPDF } = window.jspdf;
       const pdf = new jsPDF();
-
       const mapCanvas = await html2canvas(document.getElementById('map'));
       const mapImg = mapCanvas.toDataURL('image/png');
       const texto = document.getElementById('relatorio').innerText;
@@ -132,7 +123,7 @@
       pdf.text("Relatório Fundiário - REURBAN-CAMPINAS", 10, 20);
       pdf.setFontSize(12);
       pdf.text(texto, 10, 30);
-      pdf.addImage(mapImg, 'PNG', 10, 60, 180, 100);
+      pdf.addImage(mapImg, 'PNG', 10, 80, 180, 100);
       pdf.save('relatorio_reurb.pdf');
     });
   </script>
