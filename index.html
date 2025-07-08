@@ -6,17 +6,20 @@
   <title>Oráculo Fundiário - REURBAN-CAMPINAS</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <style>
     body { font-family: Arial; margin: 0; }
     header { background-color: #006644; color: white; padding: 12px 16px; font-weight: bold; font-size: 18px; }
-    .container { display: flex; padding: 10px; gap: 10px; }
-    #map { height: 480px; flex: 2; }
-    #info { flex: 1; background: #f7f7f7; padding: 12px; border-radius: 5px; }
+    .container { display: flex; padding: 10px; gap: 10px; flex-wrap: wrap; }
+    #map { height: 480px; flex: 2; min-width: 300px; }
+    #info { flex: 1; background: #f7f7f7; padding: 12px; border-radius: 5px; min-width: 280px; }
     #camadas { margin: 10px; }
     button { padding: 10px; margin: 10px; background: #004bcc; color: white; border: none; cursor: pointer; border-radius: 4px; }
     button:hover { background: #003399; }
     .label { font-weight: bold; margin-top: 10px; }
+    #mapCapture { width: 100%; height: 300px; margin-top: 10px; }
+    #graficoContainer { max-width: 400px; margin: 20px auto; }
   </style>
 </head>
 <body>
@@ -41,18 +44,29 @@
     <div id="map"></div>
     <div id="info">
       <h3>Consulta</h3>
-      <p><span class="label">Endereço:</span> <span id="endereco">-</span></p>
+      <p><span class="label">Rua:</span> <span id="rua">-</span></p>
+      <p><span class="label">Bairro:</span> <span id="bairro">-</span></p>
+      <p><span class="label">Município:</span> <span id="municipio">-</span></p>
+      <p><span class="label">Estado:</span> <span id="estado">-</span></p>
       <p><span class="label">Coordenadas:</span> <span id="coordenadas">-</span></p>
       <p><span class="label">Dados SIGEF:</span> <span id="sigef">-</span></p>
     </div>
   </div>
 
+  <div id="graficoContainer">
+    <canvas id="graficoSituacao"></canvas>
+  </div>
+
   <button id="btnPDF">Gerar Relatório Completo</button>
 
-  <!-- Conteúdo oculto para o relatório PDF -->
+  <!-- Relatório PDF -->
   <div id="modeloRelatorio" style="display:none; padding:20px; font-family:Arial;">
     <h2>Relatório de Consulta Fundiária</h2>
-    <p><strong>Endereço:</strong> <span id="rpt_endereco">-</span></p>
+    <img id="mapCapture" />
+    <p><strong>Rua:</strong> <span id="rpt_rua">-</span></p>
+    <p><strong>Bairro:</strong> <span id="rpt_bairro">-</span></p>
+    <p><strong>Município:</strong> <span id="rpt_municipio">-</span></p>
+    <p><strong>Estado:</strong> <span id="rpt_estado">-</span></p>
     <p><strong>Coordenadas:</strong> <span id="rpt_coords">-</span></p>
     <p><strong>Dados SIGEF:</strong> <span id="rpt_sigef">-</span></p>
     <p><strong>Data:</strong> <span id="rpt_data"></span></p>
@@ -72,39 +86,39 @@
       layers: 'limite_imovel_certificado', format: 'image/png', transparent: true
     });
 
-    const chkCAR = document.getElementById('camadaCAR');
-    const chkSIGEF = document.getElementById('camadaSIGEF');
-    if (chkCAR.checked) map.addLayer(carLayer);
-    if (chkSIGEF.checked) map.addLayer(sigefLayer);
+    if (document.getElementById('camadaCAR').checked) map.addLayer(carLayer);
+    if (document.getElementById('camadaSIGEF').checked) map.addLayer(sigefLayer);
 
-    chkCAR.addEventListener('change', e => e.target.checked ? map.addLayer(carLayer) : map.removeLayer(carLayer));
-    chkSIGEF.addEventListener('change', e => e.target.checked ? map.addLayer(sigefLayer) : map.removeLayer(sigefLayer));
+    document.getElementById('camadaCAR').onchange = e => e.target.checked ? map.addLayer(carLayer) : map.removeLayer(carLayer);
+    document.getElementById('camadaSIGEF').onchange = e => e.target.checked ? map.addLayer(sigefLayer) : map.removeLayer(sigefLayer);
 
     let marker;
-    let dadosConsulta = {
-      endereco: '',
-      coordenadas: '',
-      sigef: ''
-    };
+    let dadosConsulta = {};
 
     map.on('click', async function (e) {
       const { lat, lng } = e.latlng;
       if (marker) map.removeLayer(marker);
       marker = L.marker([lat, lng]).addTo(map);
-
       const coords = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-      dadosConsulta.coordenadas = coords;
       document.getElementById('coordenadas').textContent = coords;
+      dadosConsulta.coordenadas = coords;
 
       try {
-        const resp = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+        const resp = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`);
         const json = await resp.json();
-        const endereco = json.display_name || 'Desconhecido';
-        dadosConsulta.endereco = endereco;
-        document.getElementById('endereco').textContent = endereco;
+        const addr = json.address || {};
+        dadosConsulta.rua = addr.road || '-';
+        dadosConsulta.bairro = addr.suburb || addr.neighbourhood || '-';
+        dadosConsulta.municipio = addr.city || addr.town || '-';
+        dadosConsulta.estado = addr.state || '-';
+
+        document.getElementById('rua').textContent = dadosConsulta.rua;
+        document.getElementById('bairro').textContent = dadosConsulta.bairro;
+        document.getElementById('municipio').textContent = dadosConsulta.municipio;
+        document.getElementById('estado').textContent = dadosConsulta.estado;
       } catch {
-        dadosConsulta.endereco = 'Erro ao obter endereço';
-        document.getElementById('endereco').textContent = 'Erro';
+        document.getElementById('rua').textContent = document.getElementById('bairro').textContent =
+        document.getElementById('municipio').textContent = document.getElementById('estado').textContent = 'Erro';
       }
 
       try {
@@ -121,16 +135,37 @@
       }
     });
 
-    document.getElementById('btnPDF').addEventListener('click', () => {
-      document.getElementById('rpt_endereco').textContent = dadosConsulta.endereco;
+    document.getElementById('btnPDF').addEventListener('click', async () => {
+      document.getElementById('rpt_rua').textContent = dadosConsulta.rua;
+      document.getElementById('rpt_bairro').textContent = dadosConsulta.bairro;
+      document.getElementById('rpt_municipio').textContent = dadosConsulta.municipio;
+      document.getElementById('rpt_estado').textContent = dadosConsulta.estado;
       document.getElementById('rpt_coords').textContent = dadosConsulta.coordenadas;
       document.getElementById('rpt_sigef').textContent = dadosConsulta.sigef;
       document.getElementById('rpt_data').textContent = new Date().toLocaleString();
 
+      try {
+        const mapCanvas = document.querySelector("canvas");
+        const imgData = mapCanvas.toDataURL("image/png");
+        document.getElementById("mapCapture").src = imgData;
+      } catch {}
+
       setTimeout(() => {
-        const element = document.getElementById('modeloRelatorio');
-        html2pdf().from(element).save("Relatorio_REURBAN-CAMPINAS.pdf");
+        html2pdf().from(document.getElementById('modeloRelatorio')).save("Relatorio_REURBAN-CAMPINAS.pdf");
       }, 300);
+    });
+
+    // Gráfico ilustrativo
+    new Chart(document.getElementById('graficoSituacao'), {
+      type: 'pie',
+      data: {
+        labels: ['Regularizados', 'Em processo', 'Irregulares'],
+        datasets: [{
+          label: 'Situação Fundiária',
+          data: [45, 30, 25],
+          backgroundColor: ['#2ecc71', '#f1c40f', '#e74c3c']
+        }]
+      }
     });
   </script>
 </body>
