@@ -7,6 +7,7 @@
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://unpkg.com/leaflet-image/leaflet-image.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <style>
     body { font-family: Arial, sans-serif; margin: 0; background: #f5f6f7; }
     header { background-color: #006241; color: white; padding: 1rem; display: flex; justify-content: space-between; align-items: center; }
@@ -14,8 +15,6 @@
     #map { height: 500px; flex: 2; }
     #relatorio { flex: 1; margin-left: 1rem; background: white; padding: 1rem; border-radius: 8px; }
     .controls { padding: 0 1rem; margin-bottom: 0.5rem; }
-    .controls input[type=text] { padding: 5px; width: 300px; }
-    .controls label { margin-right: 10px; }
     button { margin: 1rem 0.5rem; padding: 0.5rem 1rem; font-weight: bold; }
     .link-bar { margin-right: 2rem; }
     .link-bar a { color: white; margin-left: 1rem; text-decoration: none; }
@@ -33,23 +32,38 @@
     <a href="https://car.gov.br" target="_blank">CAR</a>
   </div>
 </header>
+
 <div class="controls">
   <label><input type="checkbox" id="camadaCAR" checked> Mostrar CAR</label>
   <label><input type="checkbox" id="camadaSIGEF" checked> Mostrar SIGEF</label>
 </div>
+
 <div class="container">
   <div id="map"></div>
   <div id="relatorio">
     <h3>Consulta</h3>
-    <p><strong>Tipo de REURB:</strong> <span id="tipo"></span></p>
-    <p><strong>Base Legal:</strong> <span id="legal"></span></p>
-    <p><strong>Tempo de Ocupação:</strong> <span id="tempo"></span></p>
     <p><strong>Endereço:</strong> <span id="endereco"></span></p>
+    <p><strong>Coordenadas:</strong> <span id="coordenadas"></span></p>
     <p><strong>Dados SIGEF:</strong> <span id="sigef"></span></p>
   </div>
 </div>
+
 <div style="padding-left: 1rem">
-  <button id="btnPDF">Gerar PDF</button>
+  <button id="btnPDF">Gerar Relatório Completo</button>
+</div>
+
+<!-- Relatório oculto para PDF -->
+<div id="modeloRelatorio" style="display: none">
+  <h2>Relatório Técnico de Regularização Fundiária</h2>
+  <p><strong>Projeto:</strong> Oráculo Fundiário - REURBAN-CAMPINAS</p>
+  <p><strong>Município:</strong> Campinas/SP</p>
+  <p><strong>Endereço:</strong> <span id="rpt_endereco"></span></p>
+  <p><strong>Coordenadas:</strong> <span id="rpt_coords"></span></p>
+  <p><strong>Tipo REURB:</strong> REURB-S</p>
+  <p><strong>Base Legal:</strong> Lei 13.465/2017</p>
+  <p><strong>Dados SIGEF:</strong> <span id="rpt_sigef"></span></p>
+  <p><strong>Infraestrutura:</strong> Água, esgoto, luz, acessos</p>
+  <p><strong>Responsável Técnico:</strong> _________________________</p>
 </div>
 
 <script>
@@ -59,7 +73,6 @@
   }).addTo(map);
 
   const proxy = 'https://corsproxy.io/?';
-
   const carLayer = L.tileLayer.wms(proxy + 'https://mapas.mma.gov.br/arcgis/services/CAR/MapServer/WMSServer', {
     layers: '0', format: 'image/png', transparent: true
   });
@@ -78,50 +91,39 @@
   });
 
   let marker;
+  let dadosConsulta = {};
   map.on('click', async function (e) {
     const { lat, lng } = e.latlng;
     if (marker) map.removeLayer(marker);
-    marker = L.marker([lat, lng]).addTo(map).bindPopup("Ponto selecionado").openPopup();
+    marker = L.marker([lat, lng]).addTo(map);
+    dadosConsulta.coordenadas = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+    document.getElementById('coordenadas').textContent = dadosConsulta.coordenadas;
 
     try {
-      // Endereço Google Maps
       const geo = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=AIzaSyDXEFWgV9Af1mX1uhLVKPOQU0GDUrVcIn0`);
       const geoData = await geo.json();
-      const endereco = geoData.results?.[0]?.formatted_address ?? 'Coordenada sem endereço mapeado';
+      const endereco = geoData.results?.[0]?.formatted_address ?? 'Desconhecido';
+      document.getElementById('endereco').textContent = endereco;
+      dadosConsulta.endereco = endereco;
 
-      // SIGEF GetFeatureInfo
       const bbox = map.getBounds().toBBoxString();
       const wmsUrl = proxy + `https://certificacao.sigef.gov.br/geoserver/wms?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetFeatureInfo&LAYERS=limite_imovel_certificado&QUERY_LAYERS=limite_imovel_certificado&BBOX=${bbox}&FEATURE_COUNT=1&HEIGHT=500&WIDTH=500&INFO_FORMAT=application/json&SRS=EPSG:4326&X=250&Y=250`;
       const sigefResp = await fetch(wmsUrl);
       const sigefData = await sigefResp.json();
-      const dadosSigef = sigefData.features?.[0]?.properties?.cd_imovel ?? 'Não encontrado';
-
-      document.getElementById("tipo").textContent = "S";
-      document.getElementById("legal").textContent = "Lei nº 13.465/2017";
-      document.getElementById("tempo").textContent = "Aprox. 25 anos";
-      document.getElementById("endereco").textContent = endereco;
-      document.getElementById("sigef").textContent = dadosSigef;
-
-    } catch (error) {
+      const sigefInfo = sigefData.features?.[0]?.properties?.cd_imovel ?? 'Não identificado';
+      document.getElementById('sigef').textContent = sigefInfo;
+      dadosConsulta.sigef = sigefInfo;
+    } catch (err) {
       alert("Erro ao consultar dados.");
-      console.error(error);
     }
   });
 
   document.getElementById('btnPDF').addEventListener('click', () => {
-    leafletImage(map, function(err, canvas) {
-      const imgData = canvas.toDataURL('image/png');
-      const { jsPDF } = window.jspdf;
-      const pdf = new jsPDF();
-      const texto = document.getElementById('relatorio').innerText;
-
-      pdf.setFontSize(16);
-      pdf.text("Relatório Fundiário - REURBAN-CAMPINAS", 10, 20);
-      pdf.setFontSize(12);
-      pdf.text(texto, 10, 30);
-      pdf.addImage(imgData, 'PNG', 10, 90, 180, 100);
-      pdf.save('relatorio_reurb.pdf');
-    });
+    document.getElementById('rpt_endereco').textContent = dadosConsulta.endereco || '';
+    document.getElementById('rpt_coords').textContent = dadosConsulta.coordenadas || '';
+    document.getElementById('rpt_sigef').textContent = dadosConsulta.sigef || '';
+    const element = document.getElementById('modeloRelatorio');
+    html2pdf().from(element).save("Relatorio_REURBAN-CAMPINAS.pdf");
   });
 </script>
 </body>
