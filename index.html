@@ -50,8 +50,7 @@
       attribution: '© OpenStreetMap'
     }).addTo(map);
 
-    const proxy = 'https://proxy.cors.sh/';
-    const headers = { 'x-cors-api-key': 'temp-key' };
+    const proxy = 'https://corsproxy.io/?';
 
     const carLayer = L.tileLayer.wms(proxy + 'https://mapas.mma.gov.br/cgi-bin/mapserv?map=/var/www/html/web/.mapfiles/cadastroambiental.map', {
       layers: 'cadastroambiental',
@@ -81,19 +80,19 @@
       if (marker) map.removeLayer(marker);
       marker = L.marker(latlng).addTo(map).bindPopup("Ponto selecionado").openPopup();
 
-      // Google Maps: endereço
       try {
+        // 1. Google Maps Geocoding
         const geoResp = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${latlng.lat},${latlng.lng}&key=AIzaSyDXEFWgV9Af1mX1uhLVKPOQU0GDUrVcIn0`);
         const geoData = await geoResp.json();
         const endereco = geoData.results[0]?.formatted_address || 'Não encontrado';
 
-        // GetFeatureInfo - SIGEF
+        // 2. SIGEF GetFeatureInfo
         const bbox = map.getBounds().toBBoxString();
         const size = map.getSize();
         const point = map.latLngToContainerPoint(latlng);
         const wmsUrl = `${proxy}https://certificacao.sigef.gov.br/geoserver/wms?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetFeatureInfo&LAYERS=limite_imovel_certificado&QUERY_LAYERS=limite_imovel_certificado&STYLES=&BBOX=${bbox}&FEATURE_COUNT=10&HEIGHT=${size.y}&WIDTH=${size.x}&FORMAT=image/png&INFO_FORMAT=application/json&SRS=EPSG:4326&X=${Math.floor(point.x)}&Y=${Math.floor(point.y)}`;
 
-        const sigefResp = await fetch(wmsUrl, { headers });
+        const sigefResp = await fetch(wmsUrl);
         const sigefJson = await sigefResp.json();
         const prop = sigefJson.features?.[0]?.properties || null;
         const sigefInfo = prop ? `Código: ${prop.codigo_certificacao}` : 'Não encontrado';
