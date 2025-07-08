@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Oráculo Fundiário - REURBAN-CAMPINAS</title>
 
-  <!-- Estilo e bibliotecas -->
+  <!-- Estilos e bibliotecas -->
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -54,14 +54,16 @@
       attribution: '© OpenStreetMap'
     }).addTo(map);
 
-    const carLayer = L.tileLayer.wms("https://mapas.mma.gov.br/cgi-bin/mapserv?map=/var/www/html/web/.mapfiles/cadastroambiental.map", {
+    const proxy = "https://corsproxy.io/?";
+
+    const carLayer = L.tileLayer.wms(proxy + "https://mapas.mma.gov.br/cgi-bin/mapserv?map=/var/www/html/web/.mapfiles/cadastroambiental.map", {
       layers: 'cadastroambiental',
       format: 'image/png',
       transparent: true,
       attribution: 'Fonte: MMA/SICAR'
     });
 
-    const sigefLayer = L.tileLayer.wms("https://certificacao.sigef.gov.br/geoserver/wms", {
+    const sigefLayer = L.tileLayer.wms(proxy + "https://certificacao.sigef.gov.br/geoserver/wms", {
       layers: 'limite_imovel_certificado',
       format: 'image/png',
       transparent: true,
@@ -117,24 +119,6 @@
       }
     });
 
-    // GetFeatureInfo do SIGEF
-    map.on('click', function (e) {
-      const latlng = e.latlng;
-      const url = `https://certificacao.sigef.gov.br/geoserver/wms?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetFeatureInfo&LAYERS=limite_imovel_certificado&QUERY_LAYERS=limite_imovel_certificado&STYLES=&BBOX=${map.getBounds().toBBoxString()}&FEATURE_COUNT=1&HEIGHT=${map.getSize().y}&WIDTH=${map.getSize().x}&FORMAT=image/png&INFO_FORMAT=application/json&SRS=EPSG:4326&X=${Math.floor(map.layerPointToContainerPoint(e.layerPoint).x)}&Y=${Math.floor(map.layerPointToContainerPoint(e.layerPoint).y)}`;
-
-      fetch(url)
-        .then(response => response.json())
-        .then(data => {
-          const features = data.features;
-          if (features && features.length > 0) {
-            const props = features[0].properties;
-            const content = `<b>Imóvel SIGEF:</b><br/>ID: ${props.id}<br/>Município: ${props.municipio || '-'}<br/>Área: ${props.area || '-'} ha`;
-            L.popup().setLatLng(latlng).setContent(content).openOn(map);
-          }
-        })
-        .catch(err => console.error('Erro no GetFeatureInfo:', err));
-    });
-
     // Gerar PDF
     document.getElementById('btnPDF').addEventListener('click', async () => {
       const { jsPDF } = window.jspdf;
@@ -142,7 +126,6 @@
 
       const mapCanvas = await html2canvas(document.getElementById('map'));
       const mapImg = mapCanvas.toDataURL('image/png');
-
       const texto = document.getElementById('relatorio').innerText;
 
       pdf.setFontSize(16);
@@ -155,4 +138,3 @@
   </script>
 </body>
 </html>
-
